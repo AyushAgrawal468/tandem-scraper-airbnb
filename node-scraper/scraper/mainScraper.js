@@ -6,75 +6,53 @@ const scrapeCategory = require('./scrapeCategory');
 puppeteer.use(StealthPlugin());
 
 const LOCATIONS = ['Delhi'];
-const subCategories = ['experiences'];
+// ⚠️ subCategories is not defined in your snippet — make sure to declare it or remove the loop
+const subCategories = ['experiences']; // Example placeholder
 
 module.exports = async function mainScraper(baseUrl) {
     const allEvents = [];
-    const maxEvents = 3; // Set to null for unlimited
+      const maxEvents = 3; // Set to null for unlimited scraping
 
-    console.log(chalk.cyan.bold(`\n🚀 [START] Airbnb scraper`));
-    console.log(chalk.cyan(`🌐 Base URL: ${baseUrl}`));
-    console.log(chalk.cyan(`📍 Locations: ${LOCATIONS.join(', ')}`));
-    console.log(chalk.cyan(`📂 Categories: ${subCategories.join(', ')}`));
-    console.log(chalk.cyan(`🎯 Max events: ${maxEvents ?? 'Unlimited'}`));
-    console.log("────────────────────────────────────────────");
+    console.log(chalk.cyan(`[START] Starting mainScraper with baseUrl: ${baseUrl}`));
 
     for (const location of LOCATIONS) {
         if (maxEvents !== null && allEvents.length >= maxEvents) break;
 
-        console.log(chalk.yellow.bold(`\n📍 Starting location: ${location}`));
+        console.log(chalk.cyan(`[INFO] Starting location: ${location}`));
 
         const browser = await puppeteer.launch({
             headless: false,
-            defaultViewport: null,              // 🔴 critical: disables 800×600 viewport
-            args: [
-                '--start-maximized',              // 🔴 full screen
-                '--window-size=1920,1080',         // 🔴 force desktop layout
-                '--no-sandbox',
-                '--disable-setuid-sandbox'
-            ]
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
 
-        console.log(chalk.green(`🧭 Browser launched for ${location}`));
+        console.log(chalk.green(`[BROWSER] Browser launched for location: ${location}`));
 
         for (const subCategory of subCategories) {
-            if (maxEvents !== null && allEvents.length >= maxEvents) break;
+             if (maxEvents !== null && allEvents.length >= maxEvents) break;
 
             const url = `https://www.airbnb.co.in/s/${location}/${subCategory}`;
-            console.log(chalk.blue(`\n🔎 Scraping category: ${subCategory}`));
-            console.log(chalk.gray(`🔗 URL: ${url}`));
+            console.log(chalk.yellow(`[SCRAPE] Scraping subCategory: ${subCategory} | URL: ${url}`));
 
             try {
-                const remainingSlots =
-                    maxEvents === null ? null : maxEvents - allEvents.length;
-
-                console.log(chalk.gray(`📦 Slots remaining: ${remainingSlots ?? '∞'}`));
-
-                const events = await scrapeCategory(browser, url, location, remainingSlots);
-
-                console.log(chalk.green(`✅ ${events.length} events fetched for ${location} → ${subCategory}`));
-
+                const remainingSlots = maxEvents === null ? null : maxEvents - allEvents.length;
+                const events = await scrapeCategory(browser, url, location,  remainingSlots );
+                console.log(chalk.green(`[SUCCESS] Fetched ${events.length} events for ${location} - ${subCategory}`));
                 allEvents.push(...events);
 
-                console.log(chalk.magenta(`📊 Total collected so far: ${allEvents.length}`));
-
                 if (maxEvents !== null && allEvents.length >= maxEvents) {
-                    console.log(chalk.yellow.bold(`🛑 Reached maxEvents (${maxEvents}). Stopping.`));
+                    console.log(chalk.cyan(`[INFO] Reached maximum of ${maxEvents} events. Stopping scraper.`));
                     break;
                 }
             } catch (err) {
-                console.error(chalk.red(`❌ Failed ${location} → ${subCategory}`));
-                console.error(chalk.red(err.stack || err.message));
+                console.error(chalk.red(`[ERROR] Failed scraping ${location} - ${subCategory}: ${err.stack || err.message}`));
             }
         }
 
         await browser.close();
-        console.log(chalk.blue(`🧹 Browser closed for ${location}`));
+        console.log(chalk.blue(`[BROWSER] Browser closed for location: ${location}`));
     }
 
-    console.log("\n────────────────────────────────────────────");
-    console.log(chalk.green.bold(`🎉 Scraping complete`));
-    console.log(chalk.green(`📦 Total events collected: ${allEvents.length}`));
+    console.log(chalk.magenta(`[COMPLETE] Scraping finished. Total events collected: ${allEvents.length}`));
 
     return allEvents;
 };
