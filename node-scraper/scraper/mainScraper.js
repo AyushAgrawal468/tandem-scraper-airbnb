@@ -19,13 +19,16 @@ const MAX_EVENTS_TOTAL = null;      // ✅ set null for unlimited total across a
 
 module.exports = async function mainScraper(baseUrl, callbackUrl) {
     const seenLinks = new Set();
-    const today = new Date().toISOString().split('T')[0];
+    const todayDate = new Date();
+    todayDate.setDate(todayDate.getDate() + 1);
+    const today = todayDate.toISOString().split('T')[0];
+    
 
     console.log(chalk.cyan(`[START] mainScraper | baseUrl: ${baseUrl} | callbackUrl: ${callbackUrl} | date: ${today}`));
     console.log(chalk.cyan(`[CONFIG] Max per location: ${MAX_EVENTS_PER_LOCATION ?? 'unlimited'} | Max total: ${MAX_EVENTS_TOTAL ?? 'unlimited'}`));
 
     const browser = await puppeteer.launch({
-        headless: false,
+        headless: 'new',
         executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         args: [
             '--no-sandbox',
