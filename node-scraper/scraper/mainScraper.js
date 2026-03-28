@@ -6,52 +6,89 @@ const scrapeCategory = require('./scrapeCategory');
 
 puppeteer.use(StealthPlugin());
 
-const LOCATIONS = ['Delhi'];
-const subCategories = ['experiences'];
+const LOCATIONS = [
+     'New-Delhi', 'Bengaluru','Mumbai','Indore', 'Hyderabad', 'Goa',
+    'Chennai', 'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur',
+    'Gurgaon', 'Noida', 'Chandigarh'
+];
+
+const SUB_CATEGORIES = ['experiences'];
+
+const MAX_EVENTS_PER_LOCATION = null; // ✅ set null for unlimited per location
+const MAX_EVENTS_TOTAL = null;      // ✅ set null for unlimited total across all cities
 
 module.exports = async function mainScraper(baseUrl, callbackUrl) {
     const seenLinks = new Set();
+    const today = new Date().toISOString().split('T')[0];
 
-    console.log(chalk.cyan(`[START] Starting mainScraper with baseUrl: ${baseUrl}`));
+    console.log(chalk.cyan(`[START] mainScraper | baseUrl: ${baseUrl} | callbackUrl: ${callbackUrl} | date: ${today}`));
+    console.log(chalk.cyan(`[CONFIG] Max per location: ${MAX_EVENTS_PER_LOCATION ?? 'unlimited'} | Max total: ${MAX_EVENTS_TOTAL ?? 'unlimited'}`));
 
     const browser = await puppeteer.launch({
         headless: false,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-sync',
+            '--disable-default-apps',
+            '--mute-audio'
+        ]
     });
-
-    console.log(chalk.green(`[BROWSER] Browser launched`));
 
     try {
         for (const location of LOCATIONS) {
-            console.log(chalk.cyan(`[INFO] Starting location: ${location}`));
+            // stop if total max reached
+            if (MAX_EVENTS_TOTAL !== null && seenLinks.size >= MAX_EVENTS_TOTAL) {
+                console.log(chalk.cyan(`[INFO] Reached total max ${MAX_EVENTS_TOTAL}. Stopping all locations.`));
+                break;
+            }
 
-            for (const subCategory of subCategories) {
-                const url = `https://www.airbnb.co.in/s/${location}/${subCategory}`;
-                console.log(chalk.yellow(`[SCRAPE] Scraping subCategory: ${subCategory} | URL: ${url}`));
+            console.log(chalk.cyan(`\n[INFO] Starting location: ${location}`));
 
-                try {
-                    const events = await scrapeCategory(browser, url, location, null);
+            const url = `${baseUrl}/s/${location}/experiences?checkin=${today}`;
+            console.log(chalk.yellow(`[SCRAPE] URL: ${url}`));
 
-                    const unique = events.filter(e => {
-                        if (!e.eventLink || seenLinks.has(e.eventLink)) return false;
-                        seenLinks.add(e.eventLink);
-                        return true;
-                    });
+            try {
+                // how many slots left for total cap
+                const remainingTotal = MAX_EVENTS_TOTAL === null ? null : MAX_EVENTS_TOTAL - seenLinks.size;
 
-                    if (!unique.length) continue;
-
-                    await axios.post(callbackUrl, unique, { timeout: 10_000 });
-                    console.log(chalk.green(`[✓] Sent ${unique.length} events for ${location} - ${subCategory} to callback`));
-
-                } catch (err) {
-                    console.error(chalk.red(`[ERROR] Failed scraping ${location} - ${subCategory}: ${err.stack || err.message}`));
+                // per location cap — take the smaller of the two limits
+                let perLocationLimit = MAX_EVENTS_PER_LOCATION;
+                if (remainingTotal !== null) {
+                    perLocationLimit = perLocationLimit === null
+                        ? remainingTotal
+                        : Math.min(perLocationLimit, remainingTotal);
                 }
+
+                const events = await scrapeCategory(browser, url, location, today, perLocationLimit);
+                console.log(chalk.green(`[SUCCESS] ${events.length} events for ${location}`));
+
+                const unique = events.filter(e => {
+                    if (!e.eventLink || seenLinks.has(e.eventLink)) return false;
+                    seenLinks.add(e.eventLink);
+                    return true;
+                });
+
+                if (unique.length) {
+                    await axios.post(callbackUrl, unique, { timeout: 10_000 });
+                    console.log(chalk.green(`[✓] Sent ${unique.length} unique events for ${location} to callback`));
+                }
+
+            } catch (err) {
+                console.error(chalk.red(`[ERROR] ${location}: ${err.stack || err.message}`));
             }
         }
+    } catch (err) {
+        console.error(chalk.red(`[FATAL] ${err.message}`));
     } finally {
         await browser.close();
-        console.log(chalk.blue(`[BROWSER] Browser closed`));
+        console.log(chalk.blue(`[BROWSER] Closed`));
     }
 
-    console.log(chalk.magenta(`[COMPLETE] Scraping finished. Total unique events sent: ${seenLinks.size}`));
+    console.log(chalk.magenta(`[COMPLETE] Total unique events sent: ${seenLinks.size}`));
 };
