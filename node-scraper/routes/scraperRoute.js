@@ -3,15 +3,15 @@ const router = express.Router();
 const mainScraper = require('../scraper/mainScraper');
 
 router.post('/', async (req, res) => {
-    const { baseUrl } = req.body;
+    const { baseUrl, callbackUrl } = req.body;
     if (!baseUrl) return res.status(400).json({ error: 'Missing baseUrl' });
+    if (!callbackUrl) return res.status(400).json({ error: 'Missing callbackUrl' });
 
-    try {
-        const allEvents = await mainScraper(baseUrl);
-        res.json(allEvents);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    mainScraper(baseUrl, callbackUrl).catch(err =>
+        console.error(`[ERROR] mainScraper failed: ${err.message}`)
+    );
+
+    res.json({ status: 'Crawl started' });
 });
 
 module.exports = router;
